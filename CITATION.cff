@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "LTEE Project"
+abstract: "Variant calling on LTEE E. coli samples"
+type: software
+authors:
+  - given-names: "Huifa"
+    family-names: "Li"
+    email: "huifa.li@mbzuai.ac.ae"
+    orcid: "https://orcid.org/0009-0009-5806-385X"
+repository-code: "https://github.com/LFD-byte/ltee-project"
+license: MIT
+version: 0.1.0
+date-released: "2026-10-27"
