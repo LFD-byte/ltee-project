@@ -8,3 +8,6 @@ work/
 .snakemake/
 .nextflow/
 *.sif
+
+# Image archives are large and must never enter their own build context.
+containers/*.tar.gz
