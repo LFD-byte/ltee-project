@@ -37,9 +37,6 @@ LABEL org.opencontainers.image.description="Software environment '${ENV_NAME}' o
 # environments cannot be moved.
 COPY --from=build /opt/project/.pixi/envs/${ENV_NAME} /opt/project/.pixi/envs/${ENV_NAME}
 COPY --from=build --chmod=0755 /entrypoint.sh /entrypoint.sh
-# Pandoc uses the system trust store when embedding HTTPS resources.
-# Reuse the CA bundle pinned by pixi.lock instead of installing extra packages.
-COPY --from=build /opt/project/.pixi/envs/${ENV_NAME}/ssl/cacert.pem /etc/ssl/certs/ca-certificates.crt
 # PATH as well, for tools that ignore the entrypoint (apptainer exec)
 ENV PATH=/opt/project/.pixi/envs/${ENV_NAME}/bin:$PATH
 WORKDIR /work
