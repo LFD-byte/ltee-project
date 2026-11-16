@@ -5,5 +5,5 @@ set -euo pipefail
 python scripts/download_data.py
 bash scripts/run_qc.sh
 bash scripts/run_variant_calling.sh
-quarto render reports/ltee-report.qmd
+python scripts/render_report.py
 python scripts/check_variants.py

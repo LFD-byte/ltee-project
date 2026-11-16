@@ -115,6 +115,13 @@ docker run --rm --platform linux/amd64 -v "$PWD":/work -w /work ltee-project:0.1
 ```
 
 `pixi run reproduce` uses this same script in the pipeline environment.
+Report rendering uses `scripts/render_report.py`, which creates a temporary
+kernel specification, initializes platform and plotting helpers before
+ZeroMQ threads start, and disables the persistent kernel daemon. This avoids
+an [amd64-emulation subprocess deadlock](https://github.com/apple/container/issues/966)
+on Apple silicon without changing the locked packages. The Dockerfile also
+copies the locked environment's CA bundle into the system trust store so
+Pandoc can embed HTTPS resources.
 On Linux, add `--user "$(id -u):$(id -g)" --env HOME=/tmp` to `docker run`
 so generated files belong to you. Results are in `results/`; the report is
 `reports/ltee-report.html`. The `Containers` GitHub Actions workflow builds
@@ -137,12 +144,17 @@ Git commit `0bc754f772e887f687119bf8ab3844a36b8b5ed2`.
 | SRR2589044 | 10 |
 
 - Local image ID from `docker image inspect ltee-project:0.1.0 --format '{{.Id}}'`:
-  `sha256:860eb98ec8c58c65f8774a25c4e27162509b1a64682af82e68d89144b31067ae`
+  `sha256:656eb0c7efb39212f322054ceeb80260594e64ff50afd9a25b8e723ab0335adc`
 - Image platform: `linux/amd64`; environment: `pipeline`.
 - `pixi.lock` SHA-256: `e395e7540ffacf024845456209d6d3e10923be37a5e73fd18c82deed2e67da08`.
 - Raw-data checksums: `metadata/checksums.sha256`.
 - Tools on macOS and in the container: samtools 1.25, FastQC 0.13.0,
   bwa 0.7.19-r1273.
+- Full native `pixi run --locked reproduce` and a clean-directory Docker
+  `bash scripts/reproduce.sh` both passed on 2026-11-16. Every VCF record
+  matched, the HTML report rendered with embedded figures, and HTTPS
+  resource embedding completed without fetch errors. Local run logs are
+  in the Git-ignored `results/container-validation/` directory.
 
 Base-image tags can change. Rebuilding from the lock preserves the locked
 packages but does not promise the same image digest. Use the archived image
@@ -161,11 +173,12 @@ docker image inspect ghcr.io/lfd-byte/ltee-project:0.1.0 --format '{{index .Repo
 
 Published image: `ghcr.io/lfd-byte/ltee-project:0.1.0`.
 Registry digest verified after push and pull on 2026-11-16:
-`ghcr.io/lfd-byte/ltee-project@sha256:860eb98ec8c58c65f8774a25c4e27162509b1a64682af82e68d89144b31067ae`.
-The registry path is lowercase. Pull the exact tested image with:
+`ghcr.io/lfd-byte/ltee-project@sha256:656eb0c7efb39212f322054ceeb80260594e64ff50afd9a25b8e723ab0335adc`.
+The registry path is lowercase. The GHCR package is currently private, so
+authorized users must log in before pulling. Pull the exact tested image with:
 
 ```bash
-docker pull --platform linux/amd64 ghcr.io/lfd-byte/ltee-project@sha256:860eb98ec8c58c65f8774a25c4e27162509b1a64682af82e68d89144b31067ae
+docker pull --platform linux/amd64 ghcr.io/lfd-byte/ltee-project@sha256:656eb0c7efb39212f322054ceeb80260594e64ff50afd9a25b8e723ab0335adc
 ```
 
 ```bash
@@ -176,7 +189,7 @@ shasum -a 256 containers/ltee-project_0.1.0.tar.gz
 docker load -i containers/ltee-project_0.1.0.tar.gz
 ```
 
-Archive SHA-256: `83ec39b403e82ee97e0a9e6231624dc6f6a9ea968276c05f4728783469968707`.
+Archive SHA-256: `24a4f89a1dcca1d07612a6f5b1f8e438b270fd75d3f1d5e5befcd07ca378c4c4`.
 The archive passed `gzip -t` and was loaded back with `docker load`; the
 restored image ID matches the local ID recorded above.
 
