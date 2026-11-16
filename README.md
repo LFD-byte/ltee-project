@@ -77,3 +77,131 @@ Practice project from the Reproducible and Open Science lessons.
 ## Get the data
 
     pixi exec python scripts/download_data.py
+
+## Container
+
+Build the Linux x86-64 pipeline environment from the same `pixi.lock`:
+
+```bash
+docker build --platform linux/amd64 -f containers/Dockerfile \
+  --build-arg ENV_NAME=pipeline -t ltee-project:0.1.0 .
+docker run --rm --platform linux/amd64 ltee-project:0.1.0 samtools --version
+docker run --rm --platform linux/amd64 ltee-project:0.1.0 fastqc --version
+docker run --rm --platform linux/amd64 ltee-project:0.1.0 bwa
+```
+
+`bwa` without arguments prints its version and usage, then exits nonzero.
+The Dockerfile installs the locked environment in a Pixi build stage and
+copies it, at its original path, into Ubuntu. The entrypoint activates the
+environment; Pixi itself is not needed in the final image. Build for
+`linux/amd64` on Apple silicon because the lock supports `linux-64`, not
+`linux-aarch64`. Keep data, results, `.pixi/` and image archives out of the
+build context with `.dockerignore`.
+
+Run the lesson's variant-calling command from the project root:
+
+```bash
+docker run --rm --platform linux/amd64 -v "$PWD":/work -w /work ltee-project:0.1.0 \
+  bash scripts/run_variant_calling.sh
+python3 scripts/check_variants.py
+```
+
+For the complete project reproduction (data checksum verification, FastQC,
+MultiQC, variant calling, Quarto report and variant verification):
+
+```bash
+docker run --rm --platform linux/amd64 -v "$PWD":/work -w /work ltee-project:0.1.0 \
+  bash scripts/reproduce.sh
+```
+
+`pixi run reproduce` uses this same script in the pipeline environment.
+On Linux, add `--user "$(id -u):$(id -g)" --env HOME=/tmp` to `docker run`
+so generated files belong to you. Results are in `results/`; the report is
+`reports/ltee-report.html`. The `Containers` GitHub Actions workflow builds
+and runs the complete container workflow on every push and pull request.
+The `Reproduce` workflow checks the native Pixi path independently.
+
+### Expected results and provenance
+
+The default minimum depth is 2. `metadata/expected_variants.tsv` records
+counts and SHA-256 hashes of sorted complete VCF data records (headers are
+excluded because they contain timestamps). `scripts/check_variants.py`
+checks the exact sample set, counts and hashes against a fresh native
+Pixi run on 2026-11-16, using the unchanged variant-calling script from
+Git commit `0bc754f772e887f687119bf8ab3844a36b8b5ed2`.
+
+| Sample | Variants |
+|---|---:|
+| SRR2584863 | 25 |
+| SRR2584866 | 775 |
+| SRR2589044 | 10 |
+
+- Local image ID from `docker image inspect ltee-project:0.1.0 --format '{{.Id}}'`:
+  `sha256:860eb98ec8c58c65f8774a25c4e27162509b1a64682af82e68d89144b31067ae`
+- Image platform: `linux/amd64`; environment: `pipeline`.
+- `pixi.lock` SHA-256: `e395e7540ffacf024845456209d6d3e10923be37a5e73fd18c82deed2e67da08`.
+- Raw-data checksums: `metadata/checksums.sha256`.
+- Tools on macOS and in the container: samtools 1.25, FastQC 0.13.0,
+  bwa 0.7.19-r1273.
+
+Base-image tags can change. Rebuilding from the lock preserves the locked
+packages but does not promise the same image digest. Use the archived image
+or the recorded registry digest to recover the exact tested image.
+
+### Share and archive
+
+Use a GitHub token with `write:packages`; keep it out of Git and shell history:
+
+```bash
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u LFD-byte --password-stdin
+docker tag ltee-project:0.1.0 ghcr.io/lfd-byte/ltee-project:0.1.0
+docker push ghcr.io/lfd-byte/ltee-project:0.1.0
+docker image inspect ghcr.io/lfd-byte/ltee-project:0.1.0 --format '{{index .RepoDigests 0}}'
+```
+
+Published image: `ghcr.io/lfd-byte/ltee-project:0.1.0`.
+Registry digest verified after push and pull on 2026-11-16:
+`ghcr.io/lfd-byte/ltee-project@sha256:860eb98ec8c58c65f8774a25c4e27162509b1a64682af82e68d89144b31067ae`.
+The registry path is lowercase. Pull the exact tested image with:
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/lfd-byte/ltee-project@sha256:860eb98ec8c58c65f8774a25c4e27162509b1a64682af82e68d89144b31067ae
+```
+
+```bash
+docker save ltee-project:0.1.0 | gzip > containers/ltee-project_0.1.0.tar.gz
+gzip -t containers/ltee-project_0.1.0.tar.gz
+shasum -a 256 containers/ltee-project_0.1.0.tar.gz
+# Restore the archived image on another Docker installation:
+docker load -i containers/ltee-project_0.1.0.tar.gz
+```
+
+Archive SHA-256: `83ec39b403e82ee97e0a9e6231624dc6f6a9ea968276c05f4728783469968707`.
+The archive passed `gzip -t` and was loaded back with `docker load`; the
+restored image ID matches the local ID recorded above.
+
+The archive is excluded from Git and the Docker build context. A publication
+release can also deposit it on Zenodo (lesson 12).
+
+### Missing bind mount and optional Apptainer
+
+```bash
+docker run --rm --platform linux/amd64 ltee-project:0.1.0 bash scripts/run_variant_calling.sh
+```
+
+Without `-v "$PWD":/work`, this must exit 127 with
+`bash: scripts/run_variant_calling.sh: No such file or directory`.
+The image contains software; project files are supplied by the bind mount.
+CI checks this expected failure.
+
+Apptainer is optional and Linux-only; it is not run on this macOS machine.
+On Linux with Docker, use:
+
+```bash
+apptainer build containers/ltee-project.sif docker-daemon://ltee-project:0.1.0
+apptainer exec containers/ltee-project.sif samtools --version
+apptainer run containers/ltee-project.sif bash scripts/run_variant_calling.sh
+```
+
+After registry publication, `containers/apptainer.def` provides the recipe
+using `ghcr.io/lfd-byte/ltee-project:0.1.0` for a cluster without Docker.

@@ -22,7 +22,6 @@ check = { cmd = "python --version && quarto --version", description = "Check tha
 # `reproduce` must rebuild every result from the raw data with one command.
 # The lessons replace this placeholder with real steps.
 download = { cmd = "python scripts/download_data.py", description = "Download the raw data and verify checksums" }
-reproduce = [{ task = "qc" }, { task = "variant-calling" }, { task = "report" }]
 report = { cmd = "quarto render reports/ltee-report.qmd", depends-on = ["download"], description = "Render the Quarto report" }
 
 [feature.pipeline]
@@ -36,7 +35,8 @@ samtools = ">=1.25,<2"
 bcftools = ">=1.25,<2"
 
 [feature.pipeline.tasks]
-qc = { cmd = "mkdir -p results/qc/fastqc && fastqc --quiet --threads 2 --outdir results/qc/fastqc data/raw/fastq/*.fastq && multiqc --force -o results/qc/multiqc results/qc/fastqc", depends-on = ["download"], description = "FastQC on each FASTQ file, then a MultiQC summary" }
+reproduce = { cmd = "bash scripts/reproduce.sh", description = "Download, QC, call variants, render report and verify results" }
+qc = { cmd = "bash scripts/run_qc.sh", depends-on = ["download"], description = "FastQC on each FASTQ file, then a MultiQC summary" }
 variant-calling = { cmd = "bash scripts/run_variant_calling.sh", depends-on = ["download"], description = "Align, call and filter variants (shell script)" }
 
 [environments]
